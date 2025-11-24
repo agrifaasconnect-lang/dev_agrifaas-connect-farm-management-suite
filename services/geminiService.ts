@@ -5,7 +5,7 @@ if (!process.env.API_KEY) {
     console.warn("API_KEY environment variable not set. AI features will not work.");
 }
 
-const ai = process.env.API_KEY ? new GoogleGenAI({ apiKey: process.env.API_KEY }) : null;
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 /**
  * Analyzes a plant image for diseases.
@@ -13,10 +13,6 @@ const ai = process.env.API_KEY ? new GoogleGenAI({ apiKey: process.env.API_KEY }
  * @returns A text description of the diagnosis and suggested treatments.
  */
 export const diagnosePlant = async (base64Image: string): Promise<string> => {
-    if (!ai) {
-        return "AI features are not available. Please configure your API key.";
-    }
-
     try {
         const imagePart = {
             inlineData: {
@@ -46,11 +42,7 @@ export const diagnosePlant = async (base64Image: string): Promise<string> => {
  * @returns The model's text response.
  */
 const getAIGeneratedText = async (prompt: string): Promise<string> => {
-    if (!ai) {
-        return "AI features are not available. Please configure your API key.";
-    }
-
-    try {
+     try {
         const response: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,

@@ -56,4 +56,3 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({ isOpen, onClos
         </Modal>
     );
 };
-

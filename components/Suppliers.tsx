@@ -79,21 +79,20 @@ const SupplierModal: React.FC<SupplierModalProps> = ({ isOpen, onClose, onSubmit
 // Purchases by Supplier Report Component
 const PurchasesBySupplierReport: React.FC<{ inventory: InventoryItem[], suppliers: Supplier[] }> = ({ inventory, suppliers }) => {
     const reportData = useMemo(() => {
-        // Create a map of supplier names (from inventory) to their total purchase values
+        const supplierMap = new Map(suppliers.map(s => [s.id, s.name]));
         const purchaseMap = new Map<string, number>();
 
         inventory.forEach(item => {
             const totalValue = item.costPerUnit * item.quantity;
-            const supplierName = item.supplier || 'Unknown Supplier';
-            const currentTotal = purchaseMap.get(supplierName) || 0;
-            purchaseMap.set(supplierName, currentTotal + totalValue);
+            const currentTotal = purchaseMap.get(item.supplierId) || 0;
+            purchaseMap.set(item.supplierId, currentTotal + totalValue);
         });
 
         return Array.from(purchaseMap.entries())
-            .map(([supplierName, totalPurchaseValue]) => ({
-                name: supplierName,
+            .map(([supplierId, totalPurchaseValue]) => ({
+                name: supplierMap.get(supplierId) || 'Unknown Supplier',
                 value: totalPurchaseValue,
-                currency: 'GHS', // Default currency
+                currency: inventory.find(i => i.supplierId === supplierId)?.currency || '',
             }))
             .filter(item => item.value > 0)
             .sort((a, b) => b.value - a.value);
@@ -149,10 +148,9 @@ export const Suppliers: React.FC<{ farmData: FarmDataContextType, user: User }> 
             addSupplier(supplierData, user.name);
         }
     };
-
+    
     const handleDeleteSupplier = (supplier: Supplier) => {
-        // Check if supplier name is used in inventory items
-        const isSupplierInUse = inventory.some(item => item.supplier === supplier.name);
+        const isSupplierInUse = inventory.some(item => item.supplierId === supplier.id);
         if (isSupplierInUse) {
             alert(`Cannot delete "${supplier.name}" as it is linked to one or more inventory items. Please reassign those items first.`);
             return;
@@ -219,4 +217,3 @@ export const Suppliers: React.FC<{ farmData: FarmDataContextType, user: User }> 
         </>
     );
 };
-

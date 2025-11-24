@@ -1,311 +1,390 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { User, Workspace, PlatformConfig, AuditLogEntry, Role } from './types.js';
 import { AuthPage } from './components/auth/AuthPage';
 import { CreateWorkspacePage } from './components/auth/CreateWorkspacePage';
 import { MainApp } from './components/MainApp';
-import { SuperAdminPanel } from './components/super-admin/SuperAdminPanel';
-import { ImpersonationBanner } from './components/shared/ImpersonationBanner';
-import type { User, Workspace, Role, Feature, FeaturePermission } from './types';
-import { ALL_ROLES, ALL_FEATURES } from './types';
-import { seedFirestoreData } from './services/seedFirestoreData';
-import { useAuth } from './hooks/useAuth';
-import { useFirestoreUsers } from './hooks/useFirestoreUsers';
-import { signUp, signIn, signInWithGoogle, logout } from './services/authService';
-import { setDocument, getDocument, queryCollection } from './services/firestoreService';
+import { SuperAdmin } from './components/super-admin/SuperAdmin';
+import { seedInitialData } from './hooks/useFarmData';
+import { ALL_FEATURES, ALL_ROLES } from './types.js';
 
-const SUPER_ADMIN_PASSWORD = 'superadmin';
-
-// Mock user and workspace data for demonstration purposes
-const getMockUser = (email: string, name: string): User => ({ id: `user_${email}`, email, name });
-const createMockWorkspace = (name: string, owner: User): Workspace => {
-    const wsId = `ws_${Date.now()}`;
-    return {
-        id: wsId,
-        name,
-        members: { [owner.id]: { role: 'owner' } },
-        featurePermissions: {
-            'Dashboard': { enabled: true, allowedRoles: [...ALL_ROLES] },
-            'Operations': { enabled: true, allowedRoles: ['owner', 'Farm Manager', 'Field Manager', 'Field Officer'] },
-            'Financials': { enabled: true, allowedRoles: ['owner', 'Accountant', 'Farm Manager', 'Office Manager'] },
-            'HR': { enabled: true, allowedRoles: ['owner', 'PeopleHR', 'Farm Manager', 'Office Manager'] },
-            'Inventory': { enabled: true, allowedRoles: ['owner', 'Farm Manager', 'Field Manager'] },
-            'Plots & Seasons': { enabled: true, allowedRoles: ['owner', 'Farm Manager', 'Field Manager'] },
-            'AEO': { enabled: true, allowedRoles: ['owner', 'Agr_iEx_Off'] },
-            'AI Insights': { enabled: true, allowedRoles: ['owner', 'Farm Manager'] },
-            'Admin': { enabled: true, allowedRoles: ['owner'] },
-            'Suppliers': { enabled: true, allowedRoles: [...ALL_ROLES] },
-            'Harvest & Sales': { enabled: true, allowedRoles: ['owner', 'Farm Manager', 'Field Manager'] },
-            'How To': { enabled: true, allowedRoles: [...ALL_ROLES] },
-            'FAQ': { enabled: true, allowedRoles: [...ALL_ROLES] },
-        }
-    };
+// Mock data and localStorage helpers
+const getStorageItem = <T,>(key: string, defaultValue: T): T => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+        return defaultValue;
+    }
 };
 
+const setStorageItem = <T,>(key: string, value: T) => {
+    localStorage.setItem(key, JSON.stringify(value));
+};
+
+
 const App: React.FC = () => {
-    const { user: firebaseUser, loading } = useAuth();
-    const allUsers = useFirestoreUsers();
-    const [user, setUser] = useState<User | null>(null);
-    const [workspace, setWorkspace] = useState<Workspace | null>(null);
-    const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
-    const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-    const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
-    const [impersonatedWorkspace, setImpersonatedWorkspace] = useState<Workspace | null>(null);
+    // STATE
+    const [users, setUsers] = useState<User[]>(() => getStorageItem('users', []));
+    
+    // Initialize workspaces and migrate permissions for new features
+    const [workspaces, setWorkspaces] = useState<Workspace[]>(() => {
+        const storedWorkspaces = getStorageItem<Workspace[]>('workspaces', []);
+        const defaultPermissions = Object.fromEntries(ALL_FEATURES.map(f => [f, { enabled: true, allowedRoles: [...ALL_ROLES] }])) as Workspace['permissions'];
 
-    useEffect(() => {
-        // Skip this effect if we're in impersonation mode
-        if (impersonatedUser) {
-            return;
-        }
-
-        if (!firebaseUser) {
-            setUser(null);
-            setWorkspace(null);
-            setAllWorkspaces([]);
-            return;
-        }
-
-        const loadUserData = async () => {
-            const userData = await getDocument<User>('users', firebaseUser.uid);
-            if (userData) {
-                setUser(userData);
-
-                const workspaces = await queryCollection<Workspace>('workspaces', `members.${firebaseUser.uid}`, '!=', null);
-
-                // Migrate workspaces to add missing feature permissions
-                const migratedWorkspaces = await Promise.all(workspaces.map(async (ws) => {
-                    let needsUpdate = false;
-                    const updatedPermissions = { ...ws.featurePermissions };
-
-                    // Check if any features are missing from featurePermissions
-                    ALL_FEATURES.forEach(feature => {
-                        if (!updatedPermissions[feature]) {
-                            needsUpdate = true;
-                            // Add default permissions for missing features
-                            if (feature === 'Suppliers' || feature === 'How To' || feature === 'FAQ') {
-                                updatedPermissions[feature] = { enabled: true, allowedRoles: [...ALL_ROLES] };
-                            } else if (feature === 'Harvest & Sales') {
-                                updatedPermissions[feature] = { enabled: true, allowedRoles: ['owner', 'Farm Manager', 'Field Manager'] };
-                            }
-                        }
-                    });
-
-                    // Update workspace in Firestore if needed
-                    if (needsUpdate) {
-                        const updatedWorkspace = { ...ws, featurePermissions: updatedPermissions };
-                        await setDocument('workspaces', ws.id, updatedWorkspace);
-                        return updatedWorkspace;
-                    }
-                    return ws;
-                }));
-
-                setAllWorkspaces(migratedWorkspaces);
-
-                if (migratedWorkspaces.length > 0) {
-                    setWorkspace(migratedWorkspaces[0]);
-                }
+        const updatedWorkspaces = storedWorkspaces.map(ws => ({
+            ...ws,
+            permissions: {
+                ...defaultPermissions,
+                ...ws.permissions,
             }
-        };
-        loadUserData();
-    }, [firebaseUser, impersonatedUser]);
+        }));
 
-    const handleLogout = async () => {
-        await logout();
-        setUser(null);
-        setWorkspace(null);
-        setIsSuperAdmin(false);
-        setImpersonatedUser(null);
-        setImpersonatedWorkspace(null);
+        // Only update storage if a migration actually happened to avoid unnecessary writes
+        if (JSON.stringify(storedWorkspaces) !== JSON.stringify(updatedWorkspaces)) {
+            setStorageItem('workspaces', updatedWorkspaces);
+        }
+        
+        return updatedWorkspaces;
+    });
+    
+    const [currentUser, setCurrentUser] = useState<User | null>(() => getStorageItem('currentUser', null));
+    const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(() => getStorageItem('isSuperAdmin', false));
+    const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
+
+    const [platformConfig, setPlatformConfig] = useState<PlatformConfig>(() => getStorageItem('platformConfig', {
+        featureFlags: Object.fromEntries(ALL_FEATURES.map(f => [f, { enabled: true }])) as any,
+        defaultPermissions: Object.fromEntries(ALL_FEATURES.map(f => [f, { enabled: true, allowedRoles: [...ALL_ROLES] }])) as any,
+    }));
+    const [auditLog, setAuditLog] = useState<AuditLogEntry[]>(() => getStorageItem('auditLog', []));
+
+    // PERSISTENCE
+    useEffect(() => setStorageItem('users', users), [users]);
+    useEffect(() => setStorageItem('workspaces', workspaces), [workspaces]);
+    useEffect(() => setStorageItem('currentUser', currentUser), [currentUser]);
+    useEffect(() => setStorageItem('isSuperAdmin', isSuperAdmin), [isSuperAdmin]);
+    useEffect(() => setStorageItem('platformConfig', platformConfig), [platformConfig]);
+    useEffect(() => setStorageItem('auditLog', auditLog), [auditLog]);
+    
+    const addAuditLog = (action: string, details: string) => {
+        const newLog: AuditLogEntry = {
+            id: `log_${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            superAdminId: 'superadmin',
+            action,
+            details,
+        };
+        setAuditLog(prev => [newLog, ...prev]);
     };
 
-    const handleSuperAdminLogin = (password: string): boolean => {
-        if (password === SUPER_ADMIN_PASSWORD) {
-            setIsSuperAdmin(true);
+    // AUTH HANDLERS
+    const handleLogin = (email: string): boolean => {
+        const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (user && user.status === 'active') {
+            const userWorkspace = workspaces.find(ws => ws.members[user.id]);
+            if(userWorkspace && userWorkspace.status === 'suspended') {
+                 alert('This workspace has been suspended by the platform administrator.');
+                 return false;
+            }
+            setCurrentUser({ ...user, currentWorkspaceId: userWorkspace?.id });
             return true;
         }
+        alert('User not found or account suspended.');
         return false;
     };
 
-    const handleImpersonateUser = (impUser: User, impWorkspace: Workspace) => {
-        setImpersonatedUser(impUser);
-        setImpersonatedWorkspace(impWorkspace);
-        setUser(impUser);
-        setWorkspace(impWorkspace);
-        setIsSuperAdmin(false);
+    const handleCreateAccount = (name: string, email: string): boolean => {
+        if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+            alert('An account with this email already exists.');
+            return false;
+        }
+        const newUser: User = { id: `user_${Date.now()}`, name, email, status: 'active', contact: '' };
+        setUsers(prev => [...prev, newUser]);
+        setCurrentUser(newUser);
+        return true;
+    };
+    
+    const handleGoogleLogin = () => {
+        const googleUserEmail = 'george.washington@example.com';
+        const googleUserName = 'George Washington';
+
+        let user = users.find(u => u.email.toLowerCase() === googleUserEmail.toLowerCase());
+
+        if (user && user.status === 'suspended') {
+            alert('This account has been suspended.');
+            return;
+        }
+
+        if (!user) {
+            // First time signing in with Google, create a new user
+            const newUser: User = {
+                id: `user_${Date.now()}`,
+                name: googleUserName,
+                email: googleUserEmail,
+                status: 'active',
+                contact: '',
+            };
+            setUsers(prev => [...prev, newUser]);
+            user = newUser;
+        }
+        
+        const userWorkspace = workspaces.find(ws => ws.members[user!.id]);
+         if(userWorkspace && userWorkspace.status === 'suspended') {
+            alert('This workspace has been suspended by the platform administrator.');
+            return;
+        }
+        setCurrentUser({ ...user, currentWorkspaceId: userWorkspace?.id });
     };
 
-    const handleExitImpersonation = () => {
+    const handleLogout = () => {
+        setCurrentUser(null);
+        setIsSuperAdmin(false);
         setImpersonatedUser(null);
-        setImpersonatedWorkspace(null);
-        setUser(null);
-        setWorkspace(null);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('isSuperAdmin');
+    };
+
+    // WORKSPACE HANDLERS
+    const handleCreateWorkspace = (workspaceName: string) => {
+        if (!currentUser) return;
+        const newWorkspace: Workspace = {
+            id: `ws_${Date.now()}`,
+            name: workspaceName,
+            status: 'active',
+            members: { [currentUser.id]: { role: 'owner' } },
+            permissions: platformConfig.defaultPermissions,
+            pendingInvitations: [],
+        };
+        setWorkspaces(prev => [...prev, newWorkspace]);
+        setCurrentUser(prev => prev ? { ...prev, currentWorkspaceId: newWorkspace.id } : null);
+        seedInitialData(newWorkspace.id);
+    };
+    
+    const handleExportWorkspaceData = (workspaceId: string) => {
+        const workspaceData: { [key: string]: any } = {};
+        const prefix = `farm_data_${workspaceId}_`;
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) {
+                const dataKey = key.substring(prefix.length);
+                workspaceData[dataKey] = getStorageItem(key, []);
+            }
+        }
+        
+        const workspaceDetails = workspaces.find(ws => ws.id === workspaceId);
+        const fileName = `agrifaas_export_${workspaceDetails?.name.replace(/\s+/g, '_') || workspaceId}_${new Date().toISOString().split('T')[0]}.json`;
+
+        const blob = new Blob([JSON.stringify(workspaceData, null, 2)], { type: 'application/json' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+    };
+
+    // SUPER ADMIN HANDLERS
+    const handleSuperAdminLogin = () => {
+        if (prompt("Enter Super Admin password:") === 'superadmin') {
+            setIsSuperAdmin(true);
+            setCurrentUser(null);
+        } else {
+            alert('Incorrect password.');
+        }
+    };
+    
+    const handleToggleWorkspaceStatus = (workspaceId: string) => {
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                const newStatus = ws.status === 'active' ? 'suspended' : 'active';
+                addAuditLog('Workspace Status Change', `Workspace ${ws.name} (${ws.id}) status changed to ${newStatus}.`);
+                return { ...ws, status: newStatus };
+            }
+            return ws;
+        }));
+    };
+    
+    const handleImpersonate = (workspaceId: string) => {
+        const workspace = workspaces.find(ws => ws.id === workspaceId);
+        if (!workspace) return;
+        const ownerId = Object.keys(workspace.members).find(id => workspace.members[id].role === 'owner');
+        const owner = users.find(u => u.id === ownerId);
+        if (owner) {
+            setImpersonatedUser(owner);
+            setCurrentUser({ ...owner, currentWorkspaceId: workspaceId });
+            setIsSuperAdmin(false);
+            addAuditLog('Impersonation Start', `Started impersonating user ${owner.name} (${owner.id}) in workspace ${workspace.name} (${workspace.id}).`);
+        } else {
+            alert('Could not find owner for this workspace.');
+        }
+    };
+    
+    const handleExitImpersonation = () => {
+        if (impersonatedUser) {
+             addAuditLog('Impersonation End', `Stopped impersonating user ${impersonatedUser.name} (${impersonatedUser.id}).`);
+        }
+        setImpersonatedUser(null);
+        setCurrentUser(null);
         setIsSuperAdmin(true);
     };
 
-    const handleCreateAccount = async (name: string, email: string, password: string) => {
-        try {
-            const userCredential = await signUp(email, password);
-            await setDocument('users', userCredential.user.uid, { email, name });
-            return true;
-        } catch (error: any) {
-            alert(error.message);
-            return false;
-        }
+    const handleToggleUserStatus = (userId: string) => {
+        setUsers(prev => prev.map(u => {
+            if (u.id === userId) {
+                const newStatus = u.status === 'active' ? 'suspended' : 'active';
+                addAuditLog('User Status Change', `User ${u.name} (${u.id}) status changed to ${newStatus}.`);
+                return { ...u, status: newStatus };
+            }
+            return u;
+        }));
     };
     
-    const handleJoinWorkspace = async (name: string, email: string, password: string, workspaceId: string) => {
-        try {
-            const userCredential = await signUp(email, password);
-            await setDocument('users', userCredential.user.uid, { email, name });
-            
-            const wsData = await getDocument<Workspace>('workspaces', workspaceId);
-            if (!wsData) {
-                alert('Workspace not found.');
-                return false;
-            }
-            wsData.members[userCredential.user.uid] = { role: 'member' };
-            await setDocument('workspaces', workspaceId, wsData);
-            return true;
-        } catch (error: any) {
-            alert(error.message);
+     const handleUpdatePlatformConfig = (newConfig: PlatformConfig) => {
+        setPlatformConfig(newConfig);
+        addAuditLog('Platform Config Update', 'Global feature flags or default permissions were updated.');
+    };
+    
+    const handleJoinWorkspace = (name: string, email: string, workspaceId: string): boolean => {
+        // Find the workspace
+        const workspace = workspaces.find(ws => ws.id === workspaceId);
+        if (!workspace) {
+            alert('Workspace not found. Please check the ID.');
             return false;
         }
-    };
 
-    const handleLogin = async (email: string, password: string) => {
-        try {
-            await signIn(email, password);
-            return true;
-        } catch (error: any) {
-            alert(error.message);
+        // Check if user already exists by email
+        let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+        // If user exists, check if they are already in the workspace
+        if (user && workspace.members[user.id]) {
+            alert('You are already a member of this workspace.');
+            handleLogin(email); // Log them in
             return false;
         }
-    };
+        
+        // If user doesn't exist, create them
+        if (!user) {
+            user = { id: `user_${Date.now()}`, name, email, status: 'active', contact: '' };
+            setUsers(prev => [...prev, user!]);
+        }
+        
+        // Check for a pending invitation
+        const invitation = workspace.pendingInvitations?.find(inv => inv.email.toLowerCase() === email.toLowerCase());
+        const role = invitation ? invitation.role : 'member'; // Default to 'member' if no invite
 
-    const handleGoogleLogin = async (workspaceId?: string) => {
-        try {
-            const userCredential = await signInWithGoogle();
-            const userData = await getDocument<User>('users', userCredential.user.uid);
-            
-            if (!userData) {
-                await setDocument('users', userCredential.user.uid, {
-                    email: userCredential.user.email,
-                    name: userCredential.user.displayName || 'User'
-                });
+        // Add user to workspace and remove invitation
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                const newMembers = { ...ws.members, [user!.id]: { role } };
+                const newInvites = ws.pendingInvitations?.filter(inv => inv.email.toLowerCase() !== email.toLowerCase());
+                return { ...ws, members: newMembers, pendingInvitations: newInvites };
             }
-            
-            if (workspaceId) {
-                const wsData = await getDocument<Workspace>('workspaces', workspaceId);
-                if (!wsData) {
-                    alert('Workspace not found.');
-                    return;
+            return ws;
+        }));
+        
+        // Log in the new user
+        setCurrentUser({ ...user, currentWorkspaceId: workspaceId });
+        return true;
+    };
+    
+    const handleInviteUser = (workspaceId: string, email: string, role: Role) => {
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                const newInvite = { email, role, invitedAt: new Date().toISOString() };
+                const existingInvites = ws.pendingInvitations || [];
+                // Avoid duplicate invites
+                if (existingInvites.some(inv => inv.email.toLowerCase() === email.toLowerCase())) {
+                    alert('This user has already been invited.');
+                    return ws;
                 }
-                wsData.members[userCredential.user.uid] = { role: 'member' };
-                await setDocument('workspaces', workspaceId, wsData);
+                return { ...ws, pendingInvitations: [...existingInvites, newInvite] };
             }
-        } catch (error: any) {
-            alert(error.message);
-        }
-    };
-
-
-    const handleCreateWorkspace = async (workspaceName: string) => {
-        if (!firebaseUser) return;
-        const newWorkspace = createMockWorkspace(workspaceName, { id: firebaseUser.uid, email: firebaseUser.email!, name: user?.name || '' });
-        await setDocument('workspaces', newWorkspace.id, newWorkspace);
-        await seedFirestoreData(newWorkspace.id);
-        setAllWorkspaces([...allWorkspaces, newWorkspace]);
-        setWorkspace(newWorkspace);
-    };
-
-    const handleRemoveUserFromWorkspace = async (userId: string) => {
-        if (!workspace) return;
-        const newMembers = { ...workspace.members };
-        delete newMembers[userId];
-        const updatedWorkspace = { ...workspace, members: newMembers };
-        await setDocument('workspaces', workspace.id, updatedWorkspace);
-        setWorkspace(updatedWorkspace);
-    };
-
-    const handleUpdateUserRole = async (userId: string, newRole: Role) => {
-        if (!workspace) return;
-        const owners = Object.keys(workspace.members).filter(id => workspace.members[id].role === 'owner');
-        if (owners.length === 1 && owners[0] === userId && newRole !== 'owner') {
-            alert('Cannot demote the last owner of the workspace.');
-            return;
-        }
-        const newMembers = { ...workspace.members };
-        if (newMembers[userId]) {
-            newMembers[userId].role = newRole;
-        }
-        const updatedWorkspace = { ...workspace, members: newMembers };
-        await setDocument('workspaces', workspace.id, updatedWorkspace);
-        setWorkspace(updatedWorkspace);
+            return ws;
+        }));
     };
     
-    const handleUpdateFeaturePermissions = async (feature: Feature, newPermission: FeaturePermission) => {
-        if (!workspace) return;
-        const updatedWorkspace = {
-            ...workspace,
-            featurePermissions: {
-                ...workspace.featurePermissions,
-                [feature]: newPermission,
-            },
-        };
-        await setDocument('workspaces', workspace.id, updatedWorkspace);
-        setWorkspace(updatedWorkspace);
+    const handleRevokeInvitation = (workspaceId: string, email: string) => {
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                const newInvites = ws.pendingInvitations?.filter(inv => inv.email.toLowerCase() !== email.toLowerCase());
+                return { ...ws, pendingInvitations: newInvites };
+            }
+            return ws;
+        }));
+    };
+    
+    const handleUpdateFeaturePermissions = (workspaceId: string, newPermissions: Workspace['permissions']) => {
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                return { ...ws, permissions: newPermissions };
+            }
+            return ws;
+        }));
+    };
+    
+    const handleUpdateUserRole = (workspaceId: string, userId: string, role: Role) => {
+        setWorkspaces(prev => prev.map(ws => {
+            if (ws.id === workspaceId) {
+                const newMembers = { ...ws.members };
+                if (newMembers[userId]) {
+                    newMembers[userId] = { ...newMembers[userId], role: role };
+                }
+                return { ...ws, members: newMembers };
+            }
+            return ws;
+        }));
+    };
+    
+    const handleUpdateUser = (updatedUser: User) => {
+        setUsers(prev => prev.map(u => (u.id === updatedUser.id ? updatedUser : u)));
+        if (currentUser?.id === updatedUser.id) {
+            setCurrentUser(prev => (prev ? { ...prev, ...updatedUser } : null));
+        }
     };
 
 
-    const handleDeleteWorkspace = async () => {
-        if (!workspace) return;
-        await handleLogout();
-    };
-
-
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-
-    // Super Admin Panel
-    if (isSuperAdmin) {
-        return <SuperAdminPanel onLogout={handleLogout} onImpersonateUser={handleImpersonateUser} />;
-    }
-
-    // Auth Page
-    if (!user) {
-        return <AuthPage
-            onCreateAccount={handleCreateAccount}
-            onJoinWorkspace={handleJoinWorkspace}
-            onLogin={handleLogin}
-            onGoogleLogin={handleGoogleLogin}
-            onSuperAdminLogin={handleSuperAdminLogin}
-        />;
-    }
-
-    // Check if user is suspended
-    if (user.status === 'suspended') {
+    // RENDER LOGIC
+    if (isSuperAdmin && !impersonatedUser) {
         return (
-            <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
-                <h1 className="text-3xl font-bold text-red-600">Account Suspended</h1>
-                <p className="text-gray-700 mt-2">Your account has been suspended by the platform administrator.</p>
-                <p className="text-gray-600 mt-1 text-sm">Please contact support for more information.</p>
-                <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
-                    Logout
-                </button>
-            </div>
+            <SuperAdmin
+                allUsers={users}
+                allWorkspaces={workspaces}
+                platformConfig={platformConfig}
+                auditLog={auditLog}
+                onLogout={handleLogout}
+                onToggleWorkspaceStatus={handleToggleWorkspaceStatus}
+                onImpersonate={handleImpersonate}
+                onToggleUserStatus={handleToggleUserStatus}
+                onUpdatePlatformConfig={handleUpdatePlatformConfig}
+            />
         );
     }
 
-    // Create Workspace Page
-    if (!workspace) {
-        return <CreateWorkspacePage user={user} onCreateWorkspace={handleCreateWorkspace} />;
+    if (!currentUser) {
+        return (
+            <AuthPage
+                onCreateAccount={handleCreateAccount}
+                onJoinWorkspace={handleJoinWorkspace}
+                onLogin={handleLogin}
+                onGoogleLogin={handleGoogleLogin}
+                onSuperAdminLogin={handleSuperAdminLogin}
+            />
+        );
     }
+    
+    const currentWorkspace = workspaces.find(ws => ws.id === currentUser.currentWorkspaceId);
 
-    // Check if workspace is suspended
-    if (workspace.status === 'suspended') {
+    if (!currentWorkspace) {
+        return <CreateWorkspacePage user={currentUser} onCreateWorkspace={handleCreateWorkspace} />;
+    }
+    
+    if (currentWorkspace.status === 'suspended') {
         return (
             <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
                 <h1 className="text-3xl font-bold text-red-600">Workspace Suspended</h1>
                 <p className="text-gray-700 mt-2">This workspace has been suspended by the platform administrator.</p>
-                <p className="text-gray-600 mt-1 text-sm">Please contact support for more information.</p>
                 <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
                     Logout
                 </button>
@@ -313,19 +392,21 @@ const App: React.FC = () => {
         );
     }
 
-    // Main App
+
     return (
         <MainApp
-            user={user}
-            initialWorkspace={workspace}
+            user={currentUser}
+            workspace={currentWorkspace}
+            allUsers={users}
             onLogout={handleLogout}
-            allUsers={allUsers}
-            onRemoveUser={handleRemoveUserFromWorkspace}
-            onUpdateUserRole={handleUpdateUserRole}
-            onDeleteWorkspace={handleDeleteWorkspace}
-            onUpdateFeaturePermissions={handleUpdateFeaturePermissions}
             impersonatingUser={impersonatedUser}
             onExitImpersonation={handleExitImpersonation}
+            onInviteUser={handleInviteUser}
+            onRevokeInvitation={handleRevokeInvitation}
+            onUpdateFeaturePermissions={handleUpdateFeaturePermissions}
+            onExportWorkspaceData={handleExportWorkspaceData}
+            onUpdateUserRole={handleUpdateUserRole}
+            onUpdateUser={handleUpdateUser}
         />
     );
 };

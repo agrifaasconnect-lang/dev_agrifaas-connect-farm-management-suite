@@ -1,25 +1,40 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import type { User, Workspace, Feature, Role, FeaturePermission, Task } from '../types';
-import { ALL_FEATURES } from '../types';
-import { useFarmDataFirestore } from '../hooks/useFarmDataFirestore';
+import React, { useState, useMemo } from 'react';
+import type { User, Workspace, Feature, Task, Role } from '../types';
+import { useFarmData } from '../hooks/useFarmData';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
 import { Operations } from './Operations';
 import { Financials } from './Financials';
 import { HR } from './HR';
 import { Inventory } from './Inventory';
-import { PlotsAndSeasons } from './PlotsAndSeasons';
 import { AEO } from './AEO';
 import { AIInsights } from './AIInsights';
 import { Admin } from './Admin';
+import { PlotsAndSeasons } from './PlotsAndSeasons';
 import { Suppliers } from './Suppliers';
 import { HarvestAndSales } from './HarvestAndSales';
 import { HowToPage } from './HowToPage';
 import { FAQPage } from './FAQPage';
+import { TaskDetailModal } from './TaskDetailModal';
 import { ProfileModal } from './ProfileModal';
 import { Avatar } from './shared/Avatar';
-import { TaskDetailModal } from './TaskDetailModal';
 import { ImpersonationBanner } from './shared/ImpersonationBanner';
+
+
+interface MainAppProps {
+    user: User;
+    workspace: Workspace;
+    allUsers: User[];
+    onLogout: () => void;
+    impersonatingUser: User | null;
+    onExitImpersonation: () => void;
+    onInviteUser: (workspaceId: string, email: string, role: Role) => void;
+    onRevokeInvitation: (workspaceId: string, email: string) => void;
+    onUpdateFeaturePermissions: (workspaceId: string, newPermissions: Workspace['permissions']) => void;
+    onExportWorkspaceData: (workspaceId: string) => void;
+    onUpdateUserRole: (workspaceId: string, userId: string, role: Role) => void;
+    onUpdateUser: (user: User) => void;
+}
 
 const MenuIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -27,91 +42,73 @@ const MenuIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
-interface MainAppProps {
-    user: User;
-    initialWorkspace: Workspace;
-    onLogout: () => Promise<void>;
-    allUsers: User[];
-    onRemoveUser: (userId: string) => Promise<void>;
-    onUpdateUserRole: (userId: string, newRole: Role) => Promise<void>;
-    onDeleteWorkspace: () => Promise<void>;
-    onUpdateFeaturePermissions: (feature: Feature, permission: FeaturePermission) => Promise<void>;
-    impersonatingUser?: User | null;
-    onExitImpersonation?: () => void;
-}
-
-export const MainApp: React.FC<MainAppProps> = ({
-    user,
-    initialWorkspace,
-    onLogout,
-    allUsers,
-    onRemoveUser,
-    onUpdateUserRole,
-    onDeleteWorkspace,
+export const MainApp: React.FC<MainAppProps> = ({ 
+    user, 
+    workspace, 
+    allUsers, 
+    onLogout, 
+    impersonatingUser, 
+    onExitImpersonation,
+    onInviteUser,
+    onRevokeInvitation,
     onUpdateFeaturePermissions,
-    impersonatingUser,
-    onExitImpersonation
+    onExportWorkspaceData,
+    onUpdateUserRole,
+    onUpdateUser
 }) => {
-    const [workspace, setWorkspace] = useState<Workspace>(initialWorkspace);
     const [currentView, setCurrentView] = useState<Feature>('Dashboard');
-    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-    const farmData = useFarmDataFirestore(workspace.id);
-
-    useEffect(() => {
-        setWorkspace(initialWorkspace);
-    }, [initialWorkspace]);
+    
+    const farmData = useFarmData(workspace.id);
 
     const workspaceUsers = useMemo(() => {
-        return allUsers.filter(u => workspace.members[u.id]);
-    }, [allUsers, workspace.members]);
+        const memberIds = Object.keys(workspace.members);
+        return allUsers.filter(u => memberIds.includes(u.id));
+    }, [workspace.members, allUsers]);
     
-    const currentUserRole = workspace.members[user.id]?.role;
+    const currentUserRole = workspace.members[user.id]?.role || 'member';
 
     const enabledFeatures = useMemo(() => {
-        if (!currentUserRole) return [];
-        return ALL_FEATURES.filter(f => {
-            const permission = workspace.featurePermissions[f];
-            return permission && permission.enabled && permission.allowedRoles.includes(currentUserRole);
-        });
-    }, [workspace.featurePermissions, currentUserRole]);
-
-    useEffect(() => {
-        if (!enabledFeatures.includes(currentView)) {
-            setCurrentView('Dashboard');
+        const platformPermissions = (Object.keys(workspace.permissions) as Feature[]).filter(
+            f => workspace.permissions[f]?.enabled && workspace.permissions[f]?.allowedRoles.includes(currentUserRole)
+        );
+        // Ensure Admin is always available to owners
+        if (currentUserRole === 'owner' && !platformPermissions.includes('Admin')) {
+            platformPermissions.push('Admin');
         }
-    }, [enabledFeatures, currentView]);
+        return platformPermissions;
+    }, [workspace.permissions, currentUserRole]);
+
 
     const renderContent = () => {
+        if (!enabledFeatures.includes(currentView)) {
+            return (
+                 <div className="flex flex-col items-center justify-center h-full">
+                    <h2 className="text-2xl font-bold text-gray-700">Access Denied</h2>
+                    <p className="text-gray-500 mt-2">You do not have permission to view the "{currentView}" feature.</p>
+                </div>
+            );
+        }
+        
         switch (currentView) {
             case 'Dashboard':
                 return <Dashboard farmData={farmData} user={user} />;
             case 'Operations':
                 return <Operations farmData={farmData} user={user} workspaceUsers={workspaceUsers} onSelectTask={setSelectedTask} />;
             case 'Financials':
-                return <Financials farmData={farmData} />;
+                return <Financials farmData={farmData} user={user} />;
             case 'HR':
-                return <HR farmData={farmData} />;
+                return <HR farmData={farmData} user={user} />;
             case 'Inventory':
-                return <Inventory farmData={farmData} />;
+                return <Inventory farmData={farmData} user={user} />;
             case 'Plots & Seasons':
-                return <PlotsAndSeasons farmData={farmData} />;
+                return <PlotsAndSeasons farmData={farmData} user={user} />;
             case 'AEO':
-                return <AEO farmData={farmData} />;
+                return <AEO farmData={farmData} user={user} />;
             case 'AI Insights':
                 return <AIInsights farmData={farmData} />;
-            case 'Admin':
-                return <Admin
-                    workspace={workspace}
-                    workspaceUsers={workspaceUsers}
-                    onUpdateFeaturePermissions={onUpdateFeaturePermissions}
-                    onRemoveUser={onRemoveUser}
-                    onDeleteWorkspace={onDeleteWorkspace}
-                    onUpdateUserRole={onUpdateUserRole}
-                    currentUser={user}
-                />;
             case 'Suppliers':
                 return <Suppliers farmData={farmData} user={user} />;
             case 'Harvest & Sales':
@@ -120,34 +117,46 @@ export const MainApp: React.FC<MainAppProps> = ({
                 return <HowToPage />;
             case 'FAQ':
                 return <FAQPage />;
+            case 'Admin':
+                return <Admin 
+                    workspace={workspace}
+                    workspaceUsers={workspaceUsers}
+                    farmData={farmData}
+                    onInviteUser={onInviteUser}
+                    onRevokeInvitation={onRevokeInvitation}
+                    onUpdateFeaturePermissions={onUpdateFeaturePermissions}
+                    onExportWorkspaceData={onExportWorkspaceData}
+                    onUpdateUserRole={onUpdateUserRole}
+                />;
             default:
-                return <Dashboard farmData={farmData} user={user} />;
+                return <div>Select a feature</div>;
         }
     };
-    
+
     return (
         <>
             {selectedTask && (
-                <TaskDetailModal
+                <TaskDetailModal 
                     task={selectedTask}
                     onClose={() => setSelectedTask(null)}
-                    onUpdateTask={farmData.updateTask}
-                    onAddTaskComment={farmData.addTaskComment}
+                    onUpdateTask={(task) => farmData.updateTask(task, user.name)}
+                    onAddTaskComment={(taskId, comment) => farmData.addTaskComment(taskId, comment, user.name)}
                     allUsers={workspaceUsers}
                     allPlots={farmData.plots}
                     inventory={farmData.inventory}
                     currentUser={user}
                 />
             )}
-            <ProfileModal
-                isOpen={isProfileModalOpen}
-                onClose={() => setIsProfileModalOpen(false)}
-                user={user}
-                onLogout={onLogout}
+            <ProfileModal 
+                isOpen={isProfileModalOpen} 
+                onClose={() => setIsProfileModalOpen(false)} 
+                user={user} 
+                onLogout={onLogout} 
+                onUpdateUser={onUpdateUser}
             />
-
+            
             {isSidebarOpen && (
-                <div
+                <div 
                     className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                     aria-hidden="true"
@@ -159,7 +168,7 @@ export const MainApp: React.FC<MainAppProps> = ({
                     currentView={currentView}
                     onSetView={(view) => {
                         setCurrentView(view);
-                        setIsSidebarOpen(false);
+                        setIsSidebarOpen(false); // Close sidebar on mobile navigation
                     }}
                     features={enabledFeatures}
                     workspaceName={workspace.name}
@@ -167,9 +176,7 @@ export const MainApp: React.FC<MainAppProps> = ({
                     onClose={() => setIsSidebarOpen(false)}
                 />
                 <main className="flex-1 flex flex-col overflow-hidden">
-                    {impersonatingUser && onExitImpersonation && (
-                        <ImpersonationBanner userName={impersonatingUser.name} onExit={onExitImpersonation} />
-                    )}
+                    {impersonatingUser && <ImpersonationBanner userName={impersonatingUser.name} onExit={onExitImpersonation} />}
                     <header className="flex justify-between items-center p-4 bg-white border-b">
                          <div className="flex items-center space-x-4">
                             <button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 md:hidden" aria-label="Open sidebar">
@@ -194,4 +201,4 @@ export const MainApp: React.FC<MainAppProps> = ({
             </div>
         </>
     );
-}
+};
