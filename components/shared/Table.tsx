@@ -10,6 +10,9 @@ interface TableProps<T> {
 export const Table = <T extends { id: string }>(
     { columns, data, renderActions }: TableProps<T>
 ) => {
+    // Handle undefined or null data
+    const safeData = data || [];
+
     return (
         <div className="overflow-x-auto bg-white rounded-lg shadow">
             <table className="min-w-full divide-y divide-gray-200">
@@ -28,7 +31,14 @@ export const Table = <T extends { id: string }>(
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {data.map((item) => (
+                    {safeData.length === 0 ? (
+                        <tr>
+                            <td colSpan={columns.length + (renderActions ? 1 : 0)} className="px-6 py-4 text-center text-sm text-gray-500">
+                                No data available
+                            </td>
+                        </tr>
+                    ) : (
+                        safeData.map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50">
                             {columns.map((col, index) => (
                                 <td key={index} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
@@ -43,7 +53,8 @@ export const Table = <T extends { id: string }>(
                                 </td>
                             )}
                         </tr>
-                    ))}
+                        ))
+                    )}
                 </tbody>
             </table>
         </div>

@@ -129,3 +129,4 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSubmit,
         </Modal>
     );
 };
+

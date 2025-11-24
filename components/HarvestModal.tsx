@@ -75,3 +75,4 @@ export const HarvestModal: React.FC<HarvestModalProps> = ({ isOpen, onClose, onS
         </Modal>
     );
 };
+

@@ -64,3 +64,4 @@ export const HowToPage: React.FC = () => {
         </div>
     );
 };
+
