@@ -187,7 +187,7 @@ const App: React.FC = () => {
 
     // SUPER ADMIN HANDLERS
     const handleSuperAdminLogin = () => {
-        if (prompt("Enter Super Admin password:") === 'superadmin') {
+        if (prompt("Enter Super Admin password:") === 'superadmin0^') {
             setIsSuperAdmin(true);
             setCurrentUser(null);
         } else {
