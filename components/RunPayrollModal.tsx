@@ -1,9 +1,10 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Timesheet, Employee, Account, JournalEntry } from '../types';
 import { AccountType } from '../types';
-import { Modal } from './shared/Modal';
-import { Input } from './shared/Input';
-import { Button } from './shared/Button';
+import { Modal } from '@/components/shared/Modal';
+import { Input } from '@/components/shared/Input';
+import { Button } from '@/components/shared/Button';
 import { DEFAULT_CURRENCY, formatCurrency } from '../constants';
 
 interface RunPayrollModalProps {

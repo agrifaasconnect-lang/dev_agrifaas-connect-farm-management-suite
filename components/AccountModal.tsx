@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import type { Account } from '../types';
 import { AccountType } from '../types';
-import { Modal } from './shared/Modal';
-import { Input } from './shared/Input';
-import { Button } from './shared/Button';
+import { Modal } from '@/components/shared/Modal';
+import { Input } from '@/components/shared/Input';
+import { Button } from '@/components/shared/Button';
 import { CURRENCIES, DEFAULT_CURRENCY } from '../constants';
 
 interface AccountModalProps {

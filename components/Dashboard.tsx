@@ -1,9 +1,10 @@
+
 import React, { useMemo } from 'react';
 import type { FarmDataContextType, Task, User } from '../types';
 import { TaskStatus, AccountType } from '../types';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { DEFAULT_CURRENCY, formatCurrency } from '../constants';
+import { DEFAULT_CURRENCY, formatCurrency } from '@/constants';
 
 interface DashboardProps {
     farmData: Omit<FarmDataContextType, 'addTask' | 'updateTask' | 'addEmployee' | 'addTransaction' | 'addInventoryItem'>;
@@ -67,13 +68,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ farmData, user }) => {
 
         return Object.values(plotData);
     }, [plots, journalEntries, accounts]);
-    
-    const lowStockItems = useMemo(() => {
-        return inventory.filter(item => 
-            item.reorderPoint !== undefined && item.quantity <= item.reorderPoint
-        ).sort((a,b) => (a.quantity / (a.reorderPoint || 1)) - (b.quantity / (b.reorderPoint || 1))); // Sort by severity
-    }, [inventory]);
 
+    const lowStockItems = useMemo(() => {
+        if (!inventory) return [];
+        return inventory.filter(item => {
+            const reorderPoint = item.reorderPoint || 0;
+            return item.quantity <= reorderPoint;
+        });
+    }, [inventory]);
 
     return (
         <div className="space-y-6">
@@ -108,22 +110,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ farmData, user }) => {
                     </div>
                 </Card>
                  <Card title="Inventory Alerts" className="col-span-1">
-                    {lowStockItems.length > 0 ? (
-                        <ul className="space-y-2 max-h-48 overflow-y-auto">
-                            {lowStockItems.map(item => (
-                                <li key={item.id} className={`text-sm p-2 rounded-md ${item.quantity <= 0 ? 'bg-red-50 border border-red-200' : 'bg-yellow-50 border border-yellow-200'}`}>
-                                    <p className={`font-semibold ${item.quantity <= 0 ? 'text-red-800' : 'text-yellow-800'}`}>{item.name}</p>
-                                    <div className="flex justify-between text-xs">
-                                        <span className={item.quantity <= 0 ? 'text-red-700' : 'text-yellow-700'}>Current: {item.quantity} {item.unit}</span>
-                                        <span className="text-gray-500">Reorder at: {item.reorderPoint} {item.unit}</span>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
+                    {lowStockItems.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">All inventory levels are healthy</p>
                     ) : (
-                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-                            <span className="text-3xl">✅</span>
-                            <p className="mt-2 text-sm font-medium">All inventory levels are good.</p>
+                        <div className="space-y-2">
+                            <p className="text-sm text-red-600 font-semibold mb-2">
+                                {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''} low on stock
+                            </p>
+                            <ul className="space-y-1 max-h-32 overflow-y-auto">
+                                {lowStockItems.map(item => (
+                                    <li key={item.id} className="text-sm text-gray-700 flex justify-between">
+                                        <span className="truncate">{item.name}</span>
+                                        <span className="text-red-600 font-medium ml-2">{item.quantity} {item.unit}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     )}
                 </Card>

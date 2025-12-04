@@ -1,10 +1,9 @@
 
-
 import React from 'react';
-import type { User, Workspace, WorkspaceMember } from '../types.js';
-import { Card } from '../shared/Card';
-import { Table } from '../shared/Table';
-import { Button } from '../shared/Button';
+import type { User, Workspace, WorkspaceMember } from '@/types';
+import { Card } from '@/components/shared/Card';
+import { Table } from '@/components/shared/Table';
+import { Button } from '@/components/shared/Button';
 
 interface WorkspaceManagementProps {
     allWorkspaces: Workspace[];

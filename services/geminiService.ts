@@ -1,64 +1,68 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
-if (!process.env.API_KEY) {
-    console.warn("API_KEY environment variable not set. AI features will not work.");
-}
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-
-/**
- * Analyzes a plant image for diseases.
- * @param base64Image A base64 encoded string of the plant image.
- * @returns A text description of the diagnosis and suggested treatments.
- */
-export const diagnosePlant = async (base64Image: string): Promise<string> => {
-    try {
-        const imagePart = {
+export const diagnosePlant = async (imageBase64: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          {
             inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Image,
-            },
-        };
-        const textPart = {
-            text: "Please analyze this image of a plant. Identify any diseases, pests, or nutrient deficiencies. Provide a concise diagnosis and suggest both organic and chemical treatment options. Format the response clearly with headings for Diagnosis, Organic Treatments, and Chemical Treatments."
-        };
-
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, textPart] },
-        });
-
-        return response.text;
-    } catch (error) {
-        console.error("Error in diagnosePlant:", error);
-        return "An error occurred while analyzing the image. Please ensure your API key is configured correctly.";
-    }
+              mimeType: 'image/jpeg',
+              data: imageBase64
+            }
+          },
+          {
+            text: "Analyze this plant image. Identify the plant, diagnose any visible diseases or pest issues, and recommend treatments. Format with Markdown."
+          }
+        ]
+      }
+    });
+    return response.text || "No diagnosis could be generated.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Failed to analyze image. Please try again.";
+  }
 };
 
-/**
- * Generates AI-powered advice based on a prompt.
- * @param prompt The prompt to send to the model.
- * @returns The model's text response.
- */
-const getAIGeneratedText = async (prompt: string): Promise<string> => {
-     try {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-        return response.text;
-    } catch (error) {
-        console.error("Error generating AI text:", error);
-        return "An error occurred while fetching AI insights. Please ensure your API key is configured correctly.";
-    }
+export const getPlantingAdvice = async (crop: string, location: string, soilType: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Act as an expert agronomist. Provide a detailed planting schedule and advice for ${crop} in ${location} with ${soilType} soil. Include best time to plant, spacing, water requirements, and common risks.`
+    });
+    return response.text || "No advice generated.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Failed to get advice.";
+  }
 };
 
-export const predictYield = (historicalData: string) => 
-    getAIGeneratedText(`Based on the following historical farm data, predict the yield for the upcoming season for each crop. Provide a quantitative prediction (e.g., in tons per acre) and a brief explanation for your reasoning. Data: ${historicalData}`);
+export const predictYield = async (farmDataJson: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Based on the following farm data (plots, seasons, recent activities), predict the potential yield and identify risks:\n\n${farmDataJson}`
+    });
+    return response.text || "No prediction generated.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Failed to predict yield.";
+  }
+};
 
-export const getPlantingAdvice = (crop: string, location: string, soilType: string) => 
-    getAIGeneratedText(`I want to plant ${crop} in ${location} with ${soilType} soil. Provide an optimal planting schedule, key considerations for soil preparation, and recommendations for initial fertilization. Structure the response with clear headings.`);
-
-export const summarizeRecords = (records: string) => 
-    getAIGeneratedText(`Summarize the following farm operational records into a concise report. The report should cover: 1. Key activities performed. 2. Total expenses and a breakdown by category. 3. Potential areas for improvement or concern. Data: ${records}`);
+export const summarizeRecords = async (recordsJson: string): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Summarize the following recent farm tasks and financial entries into a concise executive brief:\n\n${recordsJson}`
+    });
+    return response.text || "No summary generated.";
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Failed to summarize records.";
+  }
+};

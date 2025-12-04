@@ -13,7 +13,7 @@ import { useFirestoreUsers } from './hooks/useFirestoreUsers';
 import { signUp, signIn, signInWithGoogle, logout } from './services/authService';
 import { setDocument, getDocument, queryCollection } from './services/firestoreService';
 
-const SUPER_ADMIN_PASSWORD = 'superadmin0^';
+const SUPER_ADMIN_PASSWORD = 'superadmin';
 
 // Mock user and workspace data for demonstration purposes
 const getMockUser = (email: string, name: string): User => ({ id: `user_${email}`, email, name });
@@ -33,6 +33,10 @@ const createMockWorkspace = (name: string, owner: User): Workspace => {
             'AEO': { enabled: true, allowedRoles: ['owner', 'Agr_iEx_Off'] },
             'AI Insights': { enabled: true, allowedRoles: ['owner', 'Farm Manager'] },
             'Admin': { enabled: true, allowedRoles: ['owner'] },
+            'Suppliers': { enabled: true, allowedRoles: ['owner', 'Farm Manager'] },
+            'Harvest & Sales': { enabled: true, allowedRoles: ['owner', 'Farm Manager'] },
+            'How To': { enabled: true, allowedRoles: [...ALL_ROLES] },
+            'FAQ': { enabled: true, allowedRoles: [...ALL_ROLES] },
         }
     };
 };
@@ -223,6 +227,22 @@ const App: React.FC = () => {
         setWorkspace(updatedWorkspace);
     };
 
+    const handleUpdateWorkspace = async (details: Partial<Workspace>) => {
+        if (!workspace) return;
+        const updatedWorkspace = { ...workspace, ...details };
+        
+        // Remove undefined fields to prevent Firestore errors
+        const cleanData = Object.entries(updatedWorkspace).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {} as any);
+
+        await setDocument('workspaces', workspace.id, cleanData);
+        setWorkspace(cleanData);
+        setAllWorkspaces(prev => prev.map(w => w.id === workspace.id ? cleanData : w));
+    };
 
     const handleDeleteWorkspace = async () => {
         if (!workspace) return;
@@ -292,6 +312,7 @@ const App: React.FC = () => {
             onUpdateUserRole={handleUpdateUserRole}
             onDeleteWorkspace={handleDeleteWorkspace}
             onUpdateFeaturePermissions={handleUpdateFeaturePermissions}
+            onUpdateWorkspace={handleUpdateWorkspace}
             impersonatingUser={impersonatedUser}
             onExitImpersonation={handleExitImpersonation}
         />

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import type { FarmDataContextType } from '../types';
 import { useFinancialCalculations } from '../hooks/useFinancialCalculations';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { FinancialReportFilters, FilterValue } from './shared/FinancialReportFilters';
-import { formatCurrency } from '../constants';
+import { formatCurrency } from '@/constants';
 import { ReportHeader } from './shared/ReportHeader';
 import { exportToExcel, exportToCSV } from '../utils/exportUtils';
 
@@ -22,13 +23,18 @@ const ReportRow: React.FC<{ label: string, value: number, currency: string, isSu
 export const IncomeStatement: React.FC<IncomeStatementProps> = ({ farmData, currency }) => {
     const { accounts, journalEntries, plots, seasons } = farmData;
     const [filter, setFilter] = useState<FilterValue>({ startDate: null, endDate: null, plotId: 'all', seasonId: 'all' });
+    
+    // Filter data by currency before calculation to prevent mixed currency summation
+    const filteredAccounts = useMemo(() => accounts.filter(a => a.currency === currency), [accounts, currency]);
+    const filteredEntries = useMemo(() => journalEntries.filter(je => je.currency === currency), [journalEntries, currency]);
+
     const { 
         netIncome, 
         incomeAccounts, 
         expenseAccounts, 
         totalIncome, 
         totalExpenses 
-    } = useFinancialCalculations(accounts, journalEntries, filter);
+    } = useFinancialCalculations(filteredAccounts, filteredEntries, filter);
     
     const handleExportExcel = () => {
         const dataForExport = [

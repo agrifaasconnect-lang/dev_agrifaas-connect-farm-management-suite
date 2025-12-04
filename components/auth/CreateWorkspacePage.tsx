@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
-import { Card } from '../shared/Card';
-import { Input } from '../shared/Input';
-import { Button } from '../shared/Button';
+import { Card } from '@/components/shared/Card';
+import { Input } from '@/components/shared/Input';
+import { Button } from '@/components/shared/Button';
 import { User } from '../../types';
 
 interface CreateWorkspacePageProps {

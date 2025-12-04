@@ -1,10 +1,11 @@
+
 import React, { useMemo, useState } from 'react';
 import type { FarmDataContextType } from '../types';
 import { AccountType } from '../types';
 import { useFinancialCalculations } from '../hooks/useFinancialCalculations';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { FinancialReportFilters, FilterValue } from './shared/FinancialReportFilters';
-import { formatCurrency } from '../constants';
+import { formatCurrency } from '@/constants';
 import { ReportHeader } from './shared/ReportHeader';
 import { exportToExcel, exportToCSV } from '../utils/exportUtils';
 
@@ -33,7 +34,12 @@ const ReportSection: React.FC<{ title: string, accounts: { name: string, balance
 export const BalanceSheet: React.FC<BalanceSheetProps> = ({ farmData, currency }) => {
     const { accounts, journalEntries, plots, seasons } = farmData;
     const [filter, setFilter] = useState<FilterValue>({ startDate: null, endDate: null, plotId: 'all', seasonId: 'all' });
-    const { accountBalances, netIncome } = useFinancialCalculations(accounts, journalEntries, filter);
+    
+    // Filter data by currency before calculation
+    const filteredAccounts = useMemo(() => accounts.filter(a => a.currency === currency), [accounts, currency]);
+    const filteredEntries = useMemo(() => journalEntries.filter(je => je.currency === currency), [journalEntries, currency]);
+
+    const { accountBalances, netIncome } = useFinancialCalculations(filteredAccounts, filteredEntries, filter);
 
     const {
         assetAccounts,
@@ -49,7 +55,7 @@ export const BalanceSheet: React.FC<BalanceSheetProps> = ({ farmData, currency }
 
         let totAssets = 0, totLiabilities = 0, totEquity = 0;
 
-        accounts.forEach(account => {
+        filteredAccounts.forEach(account => {
             const balance = accountBalances.get(account.id) ?? 0;
             if (Math.abs(balance) < 0.01 && account.type !== AccountType.Equity) return;
 
@@ -84,7 +90,7 @@ export const BalanceSheet: React.FC<BalanceSheetProps> = ({ farmData, currency }
             totalLiabilities: totLiabilities,
             totalEquity: totEquity,
         };
-    }, [accounts, accountBalances, netIncome, filter]);
+    }, [filteredAccounts, accountBalances, netIncome, filter]);
 
     const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
     const isBalanced = Math.abs(totalAssets - totalLiabilitiesAndEquity) < 0.01;

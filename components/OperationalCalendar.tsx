@@ -1,102 +1,121 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Task } from '../types';
 
 interface OperationalCalendarProps {
     tasks: Task[];
-    onSelectTask: (task: Task) => void;
+    onTaskClick?: (task: Task) => void;
 }
 
-const priorityColors: Record<'Low' | 'Medium' | 'High', { bg: string; text: string; border: string }> = {
-    'High': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-l-4 border-red-500' },
-    'Medium': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-l-4 border-yellow-500' },
-    'Low': { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-l-4 border-gray-400' },
-};
-
-export const OperationalCalendar: React.FC<OperationalCalendarProps> = ({ tasks, onSelectTask }) => {
+export const OperationalCalendar: React.FC<OperationalCalendarProps> = ({ tasks, onTaskClick }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const startDate = new Date(startOfMonth);
-    startDate.setDate(startDate.getDate() - startDate.getDay()); // Start from the Sunday of the first week
-    const endDate = new Date(endOfMonth);
-    endDate.setDate(endDate.getDate() + (6 - endDate.getDay())); // End on the Saturday of the last week
+    const { year, month } = useMemo(() => ({
+        year: currentDate.getFullYear(),
+        month: currentDate.getMonth()
+    }), [currentDate]);
 
-    const days = [];
-    let day = new Date(startDate);
-    while (day <= endDate) {
-        days.push(new Date(day));
-        day.setDate(day.getDate() + 1);
-    }
+    const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
+    const firstDayOfMonth = useMemo(() => new Date(year, month, 1).getDay(), [year, month]);
 
-    const tasksByDate = tasks.reduce((acc, task) => {
-        const dateKey = task.dueDate;
-        if (!acc[dateKey]) {
-            acc[dateKey] = [];
-        }
-        acc[dateKey].push(task);
-        return acc;
-    }, {} as Record<string, Task[]>);
+    const tasksByDate = useMemo(() => {
+        const map = new Map<string, Task[]>();
+        tasks.forEach(task => {
+            if (task.dueDate) {
+                const dateKey = task.dueDate.split('T')[0];
+                const existing = map.get(dateKey) || [];
+                map.set(dateKey, [...existing, task]);
+            }
+        });
+        return map;
+    }, [tasks]);
 
-    const handlePrevMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const goToPreviousMonth = () => {
+        setCurrentDate(new Date(year, month - 1, 1));
     };
 
-    const handleNextMonth = () => {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    const goToNextMonth = () => {
+        setCurrentDate(new Date(year, month + 1, 1));
     };
 
-    const handleToday = () => {
+    const goToToday = () => {
         setCurrentDate(new Date());
     };
 
-    const isToday = (date: Date) => {
-        const today = new Date();
-        return date.getDate() === today.getDate() &&
-               date.getMonth() === today.getMonth() &&
-               date.getFullYear() === today.getFullYear();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    const renderCalendarDays = () => {
+        const days = [];
+        
+        // Empty cells for days before the first day of the month
+        for (let i = 0; i < firstDayOfMonth; i++) {
+            days.push(<div key={`empty-${i}`} className="border border-gray-200 bg-gray-50 min-h-[100px]" />);
+        }
+
+        // Days of the month
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayTasks = tasksByDate.get(dateKey) || [];
+            const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+            days.push(
+                <div key={day} className={`border border-gray-200 p-2 min-h-[100px] ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
+                    <div className={`text-sm font-semibold mb-1 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                        {day}
+                    </div>
+                    <div className="space-y-1">
+                        {dayTasks.slice(0, 3).map(task => (
+                            <div
+                                key={task.id}
+                                onClick={() => onTaskClick?.(task)}
+                                className={`text-xs p-1 rounded cursor-pointer truncate ${
+                                    task.status === 'Done' ? 'bg-green-100 text-green-800' :
+                                    task.status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-red-100 text-red-800'
+                                }`}
+                                title={task.title}
+                            >
+                                {task.title}
+                            </div>
+                        ))}
+                        {dayTasks.length > 3 && (
+                            <div className="text-xs text-gray-500 font-medium">
+                                +{dayTasks.length - 3} more
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        return days;
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-2">
-                    <button onClick={handlePrevMonth} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
-                    <button onClick={handleNextMonth} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
-                    <button onClick={handleToday} className="px-3 py-1 text-sm border rounded hover:bg-gray-100">Today</button>
+        <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                    {monthNames[month]} {year}
+                </h3>
+                <div className="flex gap-2">
+                    <button onClick={goToPreviousMonth} className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">
+                        Previous
+                    </button>
+                    <button onClick={goToToday} className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm">
+                        Today
+                    </button>
+                    <button onClick={goToNextMonth} className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">
+                        Next
+                    </button>
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
-                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </h2>
             </div>
-            <div className="grid grid-cols-7 gap-px bg-gray-200 border-l border-t border-gray-200">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="text-center font-semibold text-xs py-2 bg-gray-50 text-gray-600">{day}</div>
+            <div className="grid grid-cols-7 gap-0">
+                {dayNames.map(day => (
+                    <div key={day} className="border border-gray-200 bg-gray-100 p-2 text-center font-semibold text-sm text-gray-700">
+                        {day}
+                    </div>
                 ))}
-                {days.map(date => {
-                    const dateKey = date.toISOString().split('T')[0];
-                    const tasksForDay = tasksByDate[dateKey] || [];
-                    const isCurrentMonth = date.getMonth() === currentDate.getMonth();
-                    
-                    return (
-                        <div key={date.toString()} className={`p-2 bg-white min-h-[120px] border-r border-b border-gray-200 ${!isCurrentMonth ? 'bg-gray-50' : ''}`}>
-                            <div className={`flex justify-center items-center h-6 w-6 rounded-full text-xs ${isToday(date) ? 'bg-green-600 text-white font-bold' : ''}`}>
-                                {date.getDate()}
-                            </div>
-                            <div className="mt-1 space-y-1 overflow-y-auto max-h-[80px]">
-                                {tasksForDay.map(task => (
-                                    <div 
-                                        key={task.id}
-                                        onClick={() => onSelectTask(task)}
-                                        className={`p-1 rounded text-xs cursor-pointer ${priorityColors[task.priority].bg} ${priorityColors[task.priority].text} ${priorityColors[task.priority].border}`}
-                                    >
-                                        <p className="font-semibold truncate">{task.title}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    );
-                })}
+                {renderCalendarDays()}
             </div>
         </div>
     );

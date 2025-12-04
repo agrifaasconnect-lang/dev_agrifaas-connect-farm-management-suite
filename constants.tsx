@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const UploadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -94,7 +95,10 @@ export const JOURNAL_CATEGORIES = [
 ].sort();
 
 // Helper for formatting currency
-export const formatCurrency = (value: number, currency: string) => {
+export const formatCurrency = (value: number | undefined | null, currency: string) => {
+    // Default to 0 if value is missing/undefined/null to prevent crashes
+    const safeValue = typeof value === 'number' ? value : 0;
+    
     // Use a try-catch for unsupported currencies, fallback to code.
     try {
         return new Intl.NumberFormat('en-US', {
@@ -102,8 +106,8 @@ export const formatCurrency = (value: number, currency: string) => {
             currency: currency,
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
-        }).format(value);
+        }).format(safeValue);
     } catch (e) {
-        return `${currency} ${value.toFixed(2)}`;
+        return `${currency} ${safeValue.toFixed(2)}`;
     }
 };

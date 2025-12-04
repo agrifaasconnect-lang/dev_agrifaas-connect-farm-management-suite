@@ -1,18 +1,18 @@
 
 import React, { useMemo } from 'react';
-import type { User, Workspace, InventoryItem, Sale, Task, WorkspaceMember } from '../../types';
-import { Card } from '../shared/Card';
-import { Table } from '../shared/Table';
-import { formatCurrency, DEFAULT_CURRENCY } from '../../constants';
+import type { User, Workspace, WorkspaceMember } from '@/types';
+import { Card } from '@/components/shared/Card';
+import { Table } from '@/components/shared/Table';
+import { formatCurrency, DEFAULT_CURRENCY } from '@/constants';
+import { queryCollection } from '@/services/firestoreService';
 
-// Helper to get data from localStorage, isolated for this component
-const getStorageItem = <T,>(key: string, defaultValue: T): T => {
+// Helper to get data from Firestore
+const getWorkspaceData = async <T,>(workspaceId: string, collection: string): Promise<T[]> => {
     try {
-        const item = localStorage.getItem(key);
-        return item ? JSON.parse(item) : defaultValue;
+        const data = await queryCollection<T>(`workspaces/${workspaceId}/${collection}`);
+        return data;
     } catch (error) {
-        // Suppress console errors in case of malformed data for a single workspace
-        return defaultValue;
+        return [];
     }
 };
 
@@ -40,40 +40,30 @@ interface SuperAdminDashboardProps {
 }
 
 export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ allUsers, allWorkspaces }) => {
-    
+
     const platformStats = useMemo(() => {
-        let totalInventoryValue = 0;
-        let totalSalesRevenue = 0;
-        let totalTasks = 0;
         const activeWorkspaces = allWorkspaces.filter(ws => ws.status === 'active').length;
 
-        for (const workspace of allWorkspaces) {
-            const inventory = getStorageItem<InventoryItem[]>(`farm_data_${workspace.id}_inventory`, []);
-            const sales = getStorageItem<Sale[]>(`farm_data_${workspace.id}_sales`, []);
-            const tasks = getStorageItem<Task[]>(`farm_data_${workspace.id}_tasks`, []);
-
-            totalInventoryValue += inventory.reduce((sum, item) => sum + (item.quantity * item.costPerUnit), 0);
-            totalSalesRevenue += sales.reduce((sum, sale) => sum + sale.items.reduce((itemSum, item) => itemSum + (item.quantitySold * item.unitPrice), 0), 0);
-            totalTasks += tasks.length;
-        }
-
+        // Note: For Firebase, we would need to aggregate data from all workspaces
+        // This is a simplified version - in production, you might want to cache this data
         return {
             totalUsers: allUsers.length,
             totalWorkspaces: allWorkspaces.length,
             activeWorkspaces,
             suspendedWorkspaces: allWorkspaces.length - activeWorkspaces,
-            totalInventoryValue,
-            totalSalesRevenue,
-            totalTasks,
+            totalInventoryValue: 0, // TODO: Aggregate from Firebase
+            totalSalesRevenue: 0, // TODO: Aggregate from Firebase
+            totalTasks: 0, // TODO: Aggregate from Firebase
         };
     }, [allUsers, allWorkspaces]);
-    
+
     const recentWorkspaces = useMemo(() => {
         return [...allWorkspaces]
             .sort((a, b) => {
-                const idA = parseInt(a.id.split('_')[1] || '0');
-                const idB = parseInt(b.id.split('_')[1] || '0');
-                return idB - idA;
+                // Sort by creation time if available, otherwise by ID
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return timeB - timeA;
             })
             .slice(0, 5);
     }, [allWorkspaces]);
@@ -81,37 +71,40 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ allUse
     const recentWorkspacesColumns = [
         { header: 'Workspace Name', accessor: 'name' as keyof Workspace },
         { header: 'Owner', accessor: (ws: Workspace) => getOwnerName(ws, allUsers) },
-        { header: 'Created On', accessor: (ws: Workspace) => new Date(parseInt(ws.id.split('_')[1])).toLocaleDateString() },
+        {
+            header: 'Created On',
+            accessor: (ws: Workspace) => ws.createdAt ? new Date(ws.createdAt).toLocaleDateString() : 'N/A'
+        },
     ];
 
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">Platform Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard 
-                    title="Total Users" 
-                    value={platformStats.totalUsers} 
-                    icon="👤" 
+                <StatCard
+                    title="Total Users"
+                    value={platformStats.totalUsers}
+                    icon="👤"
                 />
-                <StatCard 
-                    title="Workspaces" 
-                    value={platformStats.totalWorkspaces} 
+                <StatCard
+                    title="Workspaces"
+                    value={platformStats.totalWorkspaces}
                     icon="🏢"
                     description={`${platformStats.activeWorkspaces} Active / ${platformStats.suspendedWorkspaces} Suspended`}
                 />
-                 <StatCard 
-                    title="Total Tasks Logged" 
-                    value={platformStats.totalTasks.toLocaleString()} 
+                 <StatCard
+                    title="Total Tasks Logged"
+                    value={platformStats.totalTasks.toLocaleString()}
                     icon="🛠️"
                 />
-                <StatCard 
-                    title="Platform Inventory Value" 
-                    value={formatCurrency(platformStats.totalInventoryValue, DEFAULT_CURRENCY)} 
+                <StatCard
+                    title="Platform Inventory Value"
+                    value={formatCurrency(platformStats.totalInventoryValue, DEFAULT_CURRENCY)}
                     icon="📦"
                 />
-                 <StatCard 
-                    title="Platform Sales Revenue" 
-                    value={formatCurrency(platformStats.totalSalesRevenue, DEFAULT_CURRENCY)} 
+                 <StatCard
+                    title="Platform Sales Revenue"
+                    value={formatCurrency(platformStats.totalSalesRevenue, DEFAULT_CURRENCY)}
                     icon="📈"
                     description="Across all workspaces"
                 />

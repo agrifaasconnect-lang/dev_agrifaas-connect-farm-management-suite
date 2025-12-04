@@ -1,12 +1,12 @@
 
-
 import React, { useState, useCallback } from 'react';
-import { Card } from './shared/Card';
-import { Button } from './shared/Button';
+import { Card } from '@/components/shared/Card';
+import { Button } from '@/components/shared/Button';
 import { UploadIcon } from '../constants';
 import * as geminiService from '../services/geminiService';
-import { Input } from './shared/Input';
-import type { FarmDataContextType } from '../types';
+import { uploadPlantImage } from '../services/imageStorageService';
+import { Input } from '@/components/shared/Input';
+import type { FarmDataContextType, User } from '../types';
 
 const AIResultDisplay: React.FC<{ title: string; content: string }> = ({ title, content }) => {
     const formattedContent = content.split('\n').map((line, index) => {
@@ -26,7 +26,7 @@ const AIResultDisplay: React.FC<{ title: string; content: string }> = ({ title, 
     );
 };
 
-export const AIInsights: React.FC<{ farmData: FarmDataContextType }> = ({ farmData }) => {
+export const AIInsights: React.FC<{ farmData: FarmDataContextType; user: User }> = ({ farmData, user }) => {
     const [plantImage, setPlantImage] = useState<string | null>(null);
     const [plantImagePreview, setPlantImagePreview] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
@@ -68,9 +68,12 @@ export const AIInsights: React.FC<{ farmData: FarmDataContextType }> = ({ farmDa
         }
     }, []);
 
-    const handleDiagnosePlant = () => {
+    const handleDiagnosePlant = async () => {
         if (!plantImage) return;
-        handleAICall('plantDoctor', () => geminiService.diagnosePlant(plantImage), (res) => res);
+        await handleAICall('plantDoctor', async () => {
+            await uploadPlantImage(plantImage);
+            return geminiService.diagnosePlant(plantImage);
+        }, (res) => res);
     };
     
     const handlePlantingAdvice = () => {

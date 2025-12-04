@@ -1,10 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import type { FarmDataContextType } from '../types';
 import { AccountType } from '../types';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { FinancialReportFilters, FilterValue } from './shared/FinancialReportFilters';
-import { formatCurrency } from '../constants';
+import { formatCurrency } from '@/constants';
 import { ReportHeader } from './shared/ReportHeader';
 import { exportToExcel, exportToCSV } from '../utils/exportUtils';
 

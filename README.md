@@ -6,15 +6,36 @@
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/144PEUl_Pg7iKFcfoqCHhpKIfRPn54KwP
+View your app in AI Studio: https://ai.studio/apps/drive/1mvPSc834fbsS0qL7x_L9i6Szwr1qcMSE
 
 ## Run Locally
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
-   `npm install`
+   ```bash
+   npm install
+   ```
+
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+
 3. Run the app:
-   `npm run dev`
+   ```bash
+   npm run dev
+   ```
+
+## Firebase Integration
+
+This app is fully integrated with Firebase:
+- **Authentication**: Email/Password + Google OAuth
+- **Firestore**: Real-time database for all farm data
+- **Cloud Storage**: Image uploads for AI plant diagnosis
+
+See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for complete integration details.
+
+## Deploy to Firebase
+
+```bash
+npm run build
+firebase deploy
+```

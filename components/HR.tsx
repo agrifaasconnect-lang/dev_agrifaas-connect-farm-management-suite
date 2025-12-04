@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import type { FarmDataContextType, Employee, Timesheet, Account, User } from '../types';
-import { Card } from './shared/Card';
-import { Table } from './shared/Table';
-import { Button } from './shared/Button';
-import { Modal } from './shared/Modal';
-import { Input } from './shared/Input';
+import { Card } from '@/components/shared/Card';
+import { Table } from '@/components/shared/Table';
+import { Button } from '@/components/shared/Button';
+import { Modal } from '@/components/shared/Modal';
+import { Input } from '@/components/shared/Input';
 import { TimesheetModal } from './TimesheetModal';
 import { RunPayrollModal } from './RunPayrollModal';
 
@@ -64,10 +65,6 @@ export const HR: React.FC<HRProps> = ({ farmData, user }) => {
     const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
 
     const getEmployeeName = (employeeId: string) => employees.find(e => e.id === employeeId)?.name || 'N/A';
-    
-    const handleAddEmployee = (employeeData: Omit<Employee, 'id'>) => {
-        addEmployee(employeeData, user.name);
-    }
 
     const handleOpenAddTimesheet = () => {
         setEditingTimesheet(null);
@@ -81,23 +78,29 @@ export const HR: React.FC<HRProps> = ({ farmData, user }) => {
 
     const handleTimesheetSubmit = (data: Omit<Timesheet, 'id'> | Timesheet) => {
         if ('id' in data) {
-            updateTimesheet(data, user.name);
+            updateTimesheet(data);
         } else {
-            addTimesheet(data, user.name);
+            addTimesheet(data);
         }
         setIsTimesheetModalOpen(false);
     };
     
     const handleDeleteTimesheet = (id: string) => {
         if (window.confirm('Are you sure you want to delete this timesheet entry?')) {
-            deleteTimesheet(id, user.name);
+            deleteTimesheet(id);
         }
     };
 
     const employeeColumns = [
         { header: 'Name', accessor: 'name' as keyof Employee },
         { header: 'Role', accessor: 'role' as keyof Employee },
-        { header: 'Pay Rate/hr', accessor: (emp: Employee) => `$${emp.payRate.toFixed(2)}` },
+        { 
+            header: 'Pay Rate/hr', 
+            accessor: (emp: Employee) => {
+                const rate = typeof emp.payRate === 'number' ? emp.payRate : 0;
+                return `$${rate.toFixed(2)}`;
+            }
+        },
         { header: 'Contact', accessor: 'contact' as keyof Employee },
     ];
     
@@ -109,7 +112,7 @@ export const HR: React.FC<HRProps> = ({ farmData, user }) => {
 
     return (
         <>
-            <AddEmployeeModal isOpen={isEmployeeModalOpen} onClose={() => setIsEmployeeModalOpen(false)} addEmployee={handleAddEmployee} />
+            <AddEmployeeModal isOpen={isEmployeeModalOpen} onClose={() => setIsEmployeeModalOpen(false)} addEmployee={addEmployee} />
             <TimesheetModal 
                 isOpen={isTimesheetModalOpen}
                 onClose={() => setIsTimesheetModalOpen(false)}
@@ -123,7 +126,7 @@ export const HR: React.FC<HRProps> = ({ farmData, user }) => {
                 employees={employees}
                 timesheets={timesheets}
                 accounts={accounts}
-                addJournalEntry={(entry) => addJournalEntry(entry, user.name)}
+                addJournalEntry={addJournalEntry}
             />
             <div className="space-y-6">
                 <Card title="Employee Directory">

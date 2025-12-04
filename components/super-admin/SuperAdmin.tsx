@@ -1,13 +1,14 @@
+
 import React, { useState } from 'react';
-import type { User, Workspace, SuperAdminView, PlatformConfig, AuditLogEntry } from '../../types';
+import type { User, Workspace, SuperAdminView, PlatformConfig, AuditLogEntry } from '@/types';
 import { SuperAdminDashboard } from './SuperAdminDashboard';
 import { WorkspaceManagement } from './WorkspaceManagement';
 import { UserManagement } from './UserManagement';
 import { PlatformConfiguration } from './PlatformConfiguration';
 import { AuditLog } from './AuditLog';
-import { Button } from '../shared/Button';
+import { Button } from '@/components/shared/Button';
 
-interface SuperAdminProps {
+export interface SuperAdminProps {
     allUsers: User[];
     allWorkspaces: Workspace[];
     platformConfig: PlatformConfig;
@@ -29,14 +30,14 @@ const featureIcons: Record<SuperAdminView, string> = {
     'Audit Log': '📜',
 };
 
-export const SuperAdmin: React.FC<SuperAdminProps> = ({ 
-    allUsers, 
-    allWorkspaces, 
+export const SuperAdmin: React.FC<SuperAdminProps> = ({
+    allUsers,
+    allWorkspaces,
     platformConfig,
     auditLog,
-    onLogout, 
-    onToggleWorkspaceStatus, 
-    onImpersonate, 
+    onLogout,
+    onToggleWorkspaceStatus,
+    onImpersonate,
     onToggleUserStatus,
     onUpdatePlatformConfig
 }) => {
@@ -47,8 +48,8 @@ export const SuperAdmin: React.FC<SuperAdminProps> = ({
             case 'Dashboard':
                 return <SuperAdminDashboard allUsers={allUsers} allWorkspaces={allWorkspaces} />;
             case 'Workspaces':
-                return <WorkspaceManagement 
-                    allWorkspaces={allWorkspaces} 
+                return <WorkspaceManagement
+                    allWorkspaces={allWorkspaces}
                     allUsers={allUsers}
                     onToggleWorkspaceStatus={onToggleWorkspaceStatus}
                     onImpersonate={onImpersonate}
@@ -56,9 +57,9 @@ export const SuperAdmin: React.FC<SuperAdminProps> = ({
             case 'Users':
                 return <UserManagement allUsers={allUsers} onToggleUserStatus={onToggleUserStatus} />;
             case 'Configuration':
-                return <PlatformConfiguration 
-                    platformConfig={platformConfig} 
-                    onUpdateConfig={onUpdatePlatformConfig} 
+                return <PlatformConfiguration
+                    platformConfig={platformConfig}
+                    onUpdateConfig={onUpdatePlatformConfig}
                 />;
             case 'Audit Log':
                 return <AuditLog logs={auditLog} />;
@@ -79,8 +80,8 @@ export const SuperAdmin: React.FC<SuperAdminProps> = ({
                             key={view}
                             onClick={() => setCurrentView(view)}
                             className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-left text-sm font-medium transition-colors
-                                ${currentView === view 
-                                    ? 'bg-red-600 text-white shadow' 
+                                ${currentView === view
+                                    ? 'bg-red-600 text-white shadow'
                                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                                 }`}
                         >

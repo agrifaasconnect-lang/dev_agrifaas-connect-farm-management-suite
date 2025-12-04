@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Task, Plot } from '../types';
-import { Card } from './shared/Card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DEFAULT_CURRENCY, formatCurrency } from '../constants';
 
 interface CostByPlotReportProps {
@@ -11,51 +10,49 @@ interface CostByPlotReportProps {
 
 export const CostByPlotReport: React.FC<CostByPlotReportProps> = ({ tasks, plots }) => {
     const chartData = useMemo(() => {
-        const plotCostMap = new Map<string, number>();
-        
-        tasks.forEach(task => {
-            const currentCost = plotCostMap.get(task.plotId) || 0;
-            plotCostMap.set(task.plotId, currentCost + task.cost);
+        const plotCosts = plots.map(plot => {
+            const plotTasks = tasks.filter(t => t.plotId === plot.id);
+            const totalCost = plotTasks.reduce((sum, t) => sum + t.cost, 0);
+            return {
+                name: plot.name,
+                cost: totalCost
+            };
         });
         
-        const plotNameMap = new Map(plots.map(p => [p.id, p.name]));
-        
-        return Array.from(plotCostMap.entries())
-            .map(([plotId, cost]) => ({
-                name: plotNameMap.get(plotId) || `Unknown Plot`,
-                cost: cost,
-            }))
-            .filter(item => item.name !== 'Unknown Plot' && item.cost > 0)
-            .sort((a, b) => b.cost - a.cost);
-            
+        // Sort by cost descending
+        return plotCosts.sort((a, b) => b.cost - a.cost);
     }, [tasks, plots]);
 
     return (
-        <Card title={`Estimated Task Cost by Plot (${DEFAULT_CURRENCY})`}>
-            <p className="text-sm text-gray-600 mb-6">
-                This report shows the total estimated cost of all tasks associated with each plot, based on the current filters.
-            </p>
-            {chartData.length > 0 ? (
+        <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800">Cost by Plot</h3>
+            <div className="bg-white p-4 rounded-lg shadow">
                 <ResponsiveContainer width="100%" height={400}>
-                    <BarChart 
-                        data={chartData} 
-                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        layout="vertical"
-                    >
+                    <BarChart data={chartData} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" tickFormatter={(value: number) => formatCurrency(value, DEFAULT_CURRENCY)} />
-                        <YAxis type="category" dataKey="name" width={150} interval={0} />
-                        <Tooltip formatter={(value: number) => [formatCurrency(value, DEFAULT_CURRENCY), "Cost"]} />
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={120} />
+                        <Tooltip 
+                            formatter={(value: number) => formatCurrency(value, DEFAULT_CURRENCY)}
+                            contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc' }}
+                        />
                         <Legend />
-                        <Bar dataKey="cost" name="Total Estimated Cost" fill="#22c55e" />
+                        <Bar dataKey="cost" fill="#10b981" name="Total Estimated Cost" />
                     </BarChart>
                 </ResponsiveContainer>
-            ) : (
-                <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-lg">
-                    <p className="text-lg font-semibold">No Data to Display</p>
-                    <p className="mt-1">No task data with associated costs was found for the selected filters.</p>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-semibold text-gray-700 mb-2">Summary</h4>
+                <div className="space-y-1">
+                    {chartData.map(item => (
+                        <div key={item.name} className="flex justify-between text-sm">
+                            <span className="text-gray-600">{item.name}:</span>
+                            <span className="font-medium text-gray-900">{formatCurrency(item.cost, DEFAULT_CURRENCY)}</span>
+                        </div>
+                    ))}
                 </div>
-            )}
-        </Card>
+            </div>
+        </div>
     );
 };
+

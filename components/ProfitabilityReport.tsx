@@ -1,9 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
 import type { FarmDataContextType } from '../types';
 import { AccountType } from '../types';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { FinancialReportFilters, FilterValue } from './shared/FinancialReportFilters';
-import { StatCard } from './shared/StatCard';
+import { StatCard } from '@/components/shared/StatCard';
 
 interface ProfitabilityReportProps {
     farmData: FarmDataContextType;
@@ -21,6 +22,9 @@ export const ProfitabilityReport: React.FC<ProfitabilityReportProps> = ({ farmDa
         let expenses = 0;
         
         journalEntries.forEach(entry => {
+            // Filter by currency
+            if (entry.currency !== currency) return;
+
             // Filter by date
             const entryDate = new Date(entry.date);
             if (filter.startDate && entryDate < new Date(filter.startDate)) return;
@@ -52,7 +56,7 @@ export const ProfitabilityReport: React.FC<ProfitabilityReportProps> = ({ farmDa
             netProfit: revenue - expenses,
         };
 
-    }, [journalEntries, accountTypeMap, filter]);
+    }, [journalEntries, accountTypeMap, filter, currency]);
 
     return (
         <>

@@ -1,10 +1,11 @@
+
 import React, { useMemo, useState } from 'react';
 import type { FarmDataContextType, Account, JournalEntry } from '../types';
 import { AccountType } from '../types';
 import { useFinancialCalculations } from '../hooks/useFinancialCalculations';
-import { Card } from './shared/Card';
+import { Card } from '@/components/shared/Card';
 import { FinancialReportFilters, FilterValue } from './shared/FinancialReportFilters';
-import { formatCurrency } from '../constants';
+import { formatCurrency } from '@/constants';
 import { ReportHeader } from './shared/ReportHeader';
 import { exportToExcel, exportToCSV } from '../utils/exportUtils';
 
@@ -23,13 +24,18 @@ interface TrialBalanceRow {
 export const TrialBalance: React.FC<TrialBalanceProps> = ({ farmData, currency }) => {
     const { accounts, journalEntries, plots, seasons } = farmData;
     const [filter, setFilter] = useState<FilterValue>({ startDate: null, endDate: null, plotId: 'all', seasonId: 'all' });
-    const { accountBalances } = useFinancialCalculations(accounts, journalEntries, { ...filter, endDate: filter.endDate });
+    
+    // Filter data by currency before calculation
+    const filteredAccounts = useMemo(() => accounts.filter(a => a.currency === currency), [accounts, currency]);
+    const filteredEntries = useMemo(() => journalEntries.filter(je => je.currency === currency), [journalEntries, currency]);
+
+    const { accountBalances } = useFinancialCalculations(filteredAccounts, filteredEntries, { ...filter, endDate: filter.endDate });
 
     const { rows, totalDebits, totalCredits } = useMemo(() => {
         let totalDebits = 0;
         let totalCredits = 0;
 
-        const rows: TrialBalanceRow[] = accounts.map(account => {
+        const rows: TrialBalanceRow[] = filteredAccounts.map(account => {
             const balance = accountBalances.get(account.id) ?? 0;
             let debit = 0;
             let credit = 0;
@@ -50,7 +56,7 @@ export const TrialBalance: React.FC<TrialBalanceProps> = ({ farmData, currency }
           .sort((a,b) => a.accountName.localeCompare(b.accountName));
         
         return { rows, totalDebits, totalCredits };
-    }, [accounts, accountBalances]);
+    }, [filteredAccounts, accountBalances]);
     
     const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
     

@@ -1,6 +1,7 @@
+
 import React from 'react';
 import type { KnowledgeBaseArticle } from '../types';
-import { Modal } from './shared/Modal';
+import { Modal } from '@/components/shared/Modal';
 
 interface KBArticleViewModalProps {
     article: KnowledgeBaseArticle;

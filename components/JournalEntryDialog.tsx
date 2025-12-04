@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { JournalEntry, JournalEntryLine, Account, Plot, Season } from '../types';
-import { Modal } from './shared/Modal';
-import { Input } from './shared/Input';
-import { Button } from './shared/Button';
+import { Modal } from '@/components/shared/Modal';
+import { Input } from '@/components/shared/Input';
+import { Button } from '@/components/shared/Button';
 import { JOURNAL_CATEGORIES, CURRENCIES, DEFAULT_CURRENCY } from '../constants';
 
 interface JournalEntryDialogProps {
@@ -31,8 +32,8 @@ export const JournalEntryDialog: React.FC<JournalEntryDialogProps> = ({ isOpen, 
         accountId: availableAccounts[0]?.id || '',
         type: 'debit',
         amount: 0,
-        plotId: undefined,
-        seasonId: undefined,
+        plotId: null,
+        seasonId: null,
     }), [availableAccounts]);
 
 
@@ -69,7 +70,7 @@ export const JournalEntryDialog: React.FC<JournalEntryDialogProps> = ({ isOpen, 
         if (field === 'amount') {
             line.amount = Number(value);
         } else if (field === 'plotId' || field === 'seasonId') {
-            line[field] = value === 'none' ? undefined : value;
+            line[field] = value === 'none' ? null : value;
         } 
         else {
             line[field] = value;
@@ -199,8 +200,8 @@ export const JournalEntryDialog: React.FC<JournalEntryDialogProps> = ({ isOpen, 
                 <div className="flex justify-between items-center bg-gray-50 p-2 rounded-md mt-4 text-sm">
                     <div>
                         <span className="font-semibold">Totals:</span>
-                        <span className="ml-2">Debits: {totalDebits.toFixed(2)}</span>
-                        <span className="ml-4">Credits: {totalCredits.toFixed(2)}</span>
+                        <span className="ml-2">Debits: {(totalDebits || 0).toFixed(2)}</span>
+                        <span className="ml-4">Credits: {(totalCredits || 0).toFixed(2)}</span>
                     </div>
                     <div className={`font-bold ${isBalanced ? 'text-green-600' : 'text-red-600'}`}>
                         {isBalanced ? 'Balanced' : 'Unbalanced'}

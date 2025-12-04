@@ -1,8 +1,9 @@
+
 import React from 'react';
-import type { PlatformConfig, Feature, Role } from '../../types';
-import { ALL_FEATURES, ALL_ROLES } from '../../types';
-import { Card } from '../shared/Card';
-import { ToggleSwitch } from '../shared/ToggleSwitch';
+import type { PlatformConfig, Feature, Role } from '@/types';
+import { ALL_FEATURES, ALL_ROLES } from '@/types';
+import { Card } from '@/components/shared/Card';
+import { ToggleSwitch } from '@/components/shared/ToggleSwitch';
 
 interface PlatformConfigurationProps {
     platformConfig: PlatformConfig;
@@ -24,13 +25,19 @@ export const PlatformConfiguration: React.FC<PlatformConfigurationProps> = ({ pl
     
     const handleDefaultPermissionToggle = (feature: Feature, isEnabled: boolean) => {
         const newConfig = { ...platformConfig };
-        newConfig.defaultPermissions[feature].enabled = isEnabled;
+        if (!newConfig.defaultPermissions[feature]) {
+            newConfig.defaultPermissions[feature] = { enabled: isEnabled, allowedRoles: [...ALL_ROLES] };
+        } else {
+            newConfig.defaultPermissions[feature].enabled = isEnabled;
+        }
         onUpdateConfig(newConfig);
     };
     
     const handleDefaultRolePermissionChange = (feature: Feature, role: Role, isChecked: boolean) => {
         const newConfig = { ...platformConfig };
         const currentPermission = newConfig.defaultPermissions[feature];
+        if (!currentPermission) return;
+
         const newAllowedRoles = isChecked
             ? [...currentPermission.allowedRoles, role]
             : currentPermission.allowedRoles.filter(r => r !== role);
@@ -69,7 +76,7 @@ export const PlatformConfiguration: React.FC<PlatformConfigurationProps> = ({ pl
                  <div className="space-y-4">
                     {ALL_FEATURES.map(feature => {
                         const permission = platformConfig.defaultPermissions[feature];
-                        if (!permission) return null; // Should not happen with proper config merging
+                        if (!permission) return null;
                         
                         return (
                             <div key={feature} className="p-4 bg-gray-50 rounded-lg border">

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Feature } from '../types';
 
@@ -6,6 +7,7 @@ interface SidebarProps {
     onSetView: (view: Feature) => void;
     features: Feature[];
     workspaceName: string;
+    workspaceLogo?: string;
     isOpen: boolean;
     onClose: () => void;
 }
@@ -81,15 +83,19 @@ const LogoIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSetView, features, workspaceName, isOpen, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSetView, features, workspaceName, workspaceLogo, isOpen, onClose }) => {
     return (
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white flex-shrink-0 flex flex-col border-r border-gray-200 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
             <div className="h-16 flex items-center justify-between border-b border-gray-200 px-4 flex-shrink-0">
                 <div className="flex items-center space-x-2.5">
-                    <div className="p-1.5 bg-green-600 rounded-lg">
-                        <LogoIcon className="h-5 w-5 text-white" />
+                    <div className="p-1.5 bg-green-600 rounded-lg overflow-hidden flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                        {workspaceLogo ? (
+                            <img src={workspaceLogo} alt="WS" className="w-full h-full object-cover" />
+                        ) : (
+                            <LogoIcon className="h-5 w-5 text-white" />
+                        )}
                     </div>
-                    <h2 className="text-lg font-bold text-gray-800 truncate">
+                    <h2 className="text-lg font-bold text-gray-800 truncate" title={workspaceName}>
                         {workspaceName}
                     </h2>
                 </div>
@@ -106,8 +112,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSetView, featur
                             key={feature}
                             onClick={() => onSetView(feature)}
                             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-md text-left text-sm transition-colors
-                                ${currentView === feature 
-                                    ? 'bg-green-50 text-green-700 font-semibold' 
+                                ${currentView === feature
+                                    ? 'bg-green-50 text-green-700 font-semibold'
                                     : 'text-gray-600 hover:bg-gray-50 hover:text-green-700'
                                 }`}
                         >

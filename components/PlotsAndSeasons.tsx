@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
-import type { FarmDataContextType, Plot, Season, User } from '../types';
-import { Card } from './shared/Card';
-import { Table } from './shared/Table';
-import { Button } from './shared/Button';
-import { Modal } from './shared/Modal';
-import { Input } from './shared/Input';
+import type { FarmDataContextType, Plot, Season } from '../types';
+import { Card } from '@/components/shared/Card';
+import { Table } from '@/components/shared/Table';
+import { Button } from '@/components/shared/Button';
+import { Modal } from '@/components/shared/Modal';
+import { Input } from '@/components/shared/Input';
 
 interface PlotModalProps {
     isOpen: boolean;
@@ -115,7 +116,7 @@ const SeasonModal: React.FC<SeasonModalProps> = ({ isOpen, onClose, onSubmit, in
 };
 
 
-export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType, user: User }> = ({ farmData, user }) => {
+export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType }> = ({ farmData }) => {
     const { plots, addPlot, updatePlot, deletePlot, seasons, addSeason, updateSeason, deleteSeason } = farmData;
     const [isPlotModalOpen, setIsPlotModalOpen] = useState(false);
     const [editingPlot, setEditingPlot] = useState<Plot | null>(null);
@@ -139,16 +140,16 @@ export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType, user: Us
 
     const handleSubmitPlot = (plotData: Omit<Plot, 'id'> | Plot) => {
         if ('id' in plotData) {
-            updatePlot(plotData, user.name);
+            updatePlot(plotData);
         } else {
-            addPlot(plotData, user.name);
+            addPlot(plotData);
         }
         handleClosePlotModal();
     };
 
-    const handleDeletePlot = (plot: Plot) => {
+    const handleDeletePlot = (plotId: string) => {
         if (window.confirm('Are you sure you want to delete this plot? This action cannot be undone.')) {
-            deletePlot(plot.id, user.name, plot.name);
+            deletePlot(plotId);
         }
     };
     
@@ -169,16 +170,16 @@ export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType, user: Us
 
     const handleSubmitSeason = (seasonData: Omit<Season, 'id'> | Season) => {
         if ('id' in seasonData) {
-            updateSeason(seasonData, user.name);
+            updateSeason(seasonData);
         } else {
-            addSeason(seasonData, user.name);
+            addSeason(seasonData);
         }
         handleCloseSeasonModal();
     };
 
-    const handleDeleteSeason = (season: Season) => {
+    const handleDeleteSeason = (seasonId: string) => {
         if (window.confirm('Are you sure you want to delete this season? This action cannot be undone.')) {
-            deleteSeason(season.id, user.name, `${season.name} ${season.year}`);
+            deleteSeason(seasonId);
         }
     };
 
@@ -222,7 +223,7 @@ export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType, user: Us
                                 <Button variant="secondary" className="text-sm py-1 px-2" onClick={() => handleOpenEditPlotModal(plot)}>
                                     Edit
                                 </Button>
-                                <Button variant="danger" className="text-sm py-1 px-2" onClick={() => handleDeletePlot(plot)}>
+                                <Button variant="danger" className="text-sm py-1 px-2" onClick={() => handleDeletePlot(plot.id)}>
                                     Delete
                                 </Button>
                             </div>
@@ -241,7 +242,7 @@ export const PlotsAndSeasons: React.FC<{ farmData: FarmDataContextType, user: Us
                                 <Button variant="secondary" className="text-sm py-1 px-2" onClick={() => handleOpenEditSeasonModal(season)}>
                                     Edit
                                 </Button>
-                                <Button variant="danger" className="text-sm py-1 px-2" onClick={() => handleDeleteSeason(season)}>
+                                <Button variant="danger" className="text-sm py-1 px-2" onClick={() => handleDeleteSeason(season.id)}>
                                     Delete
                                 </Button>
                             </div>

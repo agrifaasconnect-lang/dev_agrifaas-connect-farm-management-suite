@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
-import type { AuditLogEntry } from '../../types';
-import { Card } from '../shared/Card';
-import { Table } from '../shared/Table';
-import { Input } from '../shared/Input';
+import type { AuditLogEntry } from '@/types';
+import { Card } from '@/components/shared/Card';
+import { Table } from '@/components/shared/Table';
+import { Input } from '@/components/shared/Input';
 
 interface AuditLogProps {
     logs: AuditLogEntry[];
